@@ -1,0 +1,438 @@
+---
+title: "P2"
+author: "Hongyang Wang"
+date: '2022-05-02'
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## ERD for first part
+
+![](https://i.imgur.com/Xc50gvd.png)
+
+## Realize the relational schema in SQLite
+
+### Load Libraries
+```{r loadLibraries}
+library(XML)
+library(RSQLite)
+library(DBI)
+library(knitr)
+```
+
+### Creat Path
+```{r filenames}
+path <- "C:/Users/Hongyang Wang/OneDrive/2022northeastern/DS5200/p2/"
+fn <- "pubmed_sample.xml"
+fpn = paste0(path, fn)
+
+dbfn <- "pubmed_sample.sqlite"
+dbfpn = paste0(path, dbfn)
+
+
+```
+
+### Creat Sqlite DB
+```{r}
+dbp2 <- dbConnect(RSQLite::SQLite(),dbfpn)
+```
+### Pragma foreign_key
+```{sql connection=dbp2}
+Pragma foreign_key = on
+
+```
+
+```{sql connection=dbp2}
+drop table if exists Articles
+
+```
+```{sql connection=dbp2}
+drop table if exists Journals
+
+```
+```{sql connection=dbp2}
+drop table if exists Authors
+
+```
+```{sql connection=dbp2}
+drop table if exists Autart
+
+```
+
+### Create tables
+table for Journals
+```{sql connection=dbp2}
+create table Journals(
+  i_id Text not null,
+  tital Text not null,
+  volume Text,
+  issue Text,
+  pubdate date '%Y/%m',
+  primary key (i_id)
+)
+```
+table for Articles
+```{sql connection=dbp2}
+create table Articles(
+  p_id number not null,
+  articeTital Text not null,
+  creatDate date '%Y/%m/%d',
+  ISSN Text,
+  primary key (p_id),
+  foreign key (ISSN) references Journals(i_id)
+)
+```
+
+table for Authors
+```{sql connection=dbp2}
+create table Authors(
+  a_id number not null,
+  l_name Text not null,
+  f_name Text,
+  inital Text,
+  affiliation Text,
+  primary key (a_id)
+)
+```
+
+table for Autart
+```{sql connection=dbp2}
+create table Autart(
+  k_id number not null,
+  a_id number not null,
+  p_id Text not null,
+  primary key (k_id)
+  foreign key (a_id) references Authors(a_id)
+  foreign key (p_id) references Articles(p_id)
+)
+```
+
+Reading the XML file and parse into DOM
+```{r}
+# Reading the XML file and parse into DOM
+xmlDOM <- xmlParse(file = fpn)
+
+# get the root node of the DOM tree
+r <- xmlRoot(xmlDOM)
+numArticles <- xmlSize(r)
+```
+
+### Make DF
+To create the original file, the Book.DF data contains all elements.
+```{r createDFs}
+# get number of children of root (number of purchase orders)
+Artic.df <- data.frame (
+                      p_id = vector (mode = "character", length = numArticles),
+                      articeTital = vector (mode = "numeric", length = numArticles),
+                      year= vector (mode = "numeric", length = numArticles),
+                      Month= vector (mode = "numeric", length = numArticles),
+                      day = vector (mode = "numeric", length = numArticles),
+                      ISSN = vector (mode = "character", length = numArticles),
+                      stringsAsFactors = F)
+
+Authors.df <- data.frame (a_id = vector (mode = "numeric", length = numArticles),
+                          p_id = vector (mode = "numeric", length = numArticles),
+                      l_name = vector (mode = "character", length = numArticles),
+                      f_name = vector (mode = "character", length = numArticles),
+                      inital = vector (mode = "character", length = numArticles),
+                      affiliation = vector (mode = "character", length = numArticles),
+                      stringsAsFactors = F)
+
+Journals.df <- data.frame (i_id = vector (mode = "numeric", length = numArticles),
+                      jtital = vector (mode = "character", length = numArticles),
+                      volume = vector (mode = "character", length = numArticles),
+                      issue = vector(mode = "character", length = numArticles),
+                      pubdate = vector (mode = "character", length = numArticles),
+                      stringsAsFactors = F)
+
+Autart.df <- data.frame(p_id = vector (mode = "character", length = numArticles),
+                        a_id = vector (mode = "numeric", length = numArticles),
+                        stringsAsFactors = F)
+```
+
+
+```{r process POs}
+
+# Reading the XML file and parse into DOM
+xmlDOM <- xmlParse(file = fpn)
+
+# get the root node of the DOM tree
+r <- xmlRoot(xmlDOM)
+
+numPO <- xmlSize(r)
+
+
+
+# iterate over the first-level child elements off the root:
+# the <PurchaseOrder> elements
+numPO <- xmlSize(r)
+
+for (i in 1:numPO)
+{
+  f = r[[i]]
+  d = f[[1]]
+  y = d[[2]]
+  m = d[[5]]
+  z = m[[1]]
+  
+  m1 = d[[4]]
+  m2 = d[[3]]
+  c1=m1[[1]]
+  c2 = m2[[1]]
+  ch1 = capture.output(c1)
+  ch2 = capture.output(c2)
+  v = "Journal"
+  print(ch1)
+  cnode1 <- grepl(v, ch1 , fixed = TRUE)
+  print(cnode1)
+  cnode2 <- grepl(v, ch2 , fixed = TRUE)
+  if(cnode1 == TRUE){
+    Artic.df$p_id[i] <- xmlValue(d[[1]])
+    Artic.df$articeTital[i] <- xmlValue(m[[2]])
+    Artic.df$year[i] <- xmlValue(y[[1]])
+    Artic.df$Month[i]<- xmlValue(y[[2]])
+    Artic.df$day[i]<- xmlValue(y[[3]])
+    Artic.df$ISSN[i]<- xmlValue(c1[[1]])
+  }else if(cnode2 == TRUE){
+    m = d[[3]]
+    Artic.df$p_id[i] <- xmlValue(d[[1]])
+    Artic.df$articeTital[i] <- xmlValue(m[[2]])
+    Artic.df$year[i] <- xmlValue(y[[1]])
+    Artic.df$Month[i]<- xmlValue(y[[2]])
+    Artic.df$day[i]<- xmlValue(y[[3]])
+    Artic.df$ISSN[i]<- xmlValue(c2[[1]])
+  }else{
+    Artic.df$p_id[i] <- xmlValue(d[[1]])
+    Artic.df$articeTital[i] <- xmlValue(m[[2]])
+    Artic.df$year[i] <- xmlValue(y[[1]])
+    Artic.df$Month[i]<- xmlValue(y[[2]])
+    Artic.df$day[i]<- xmlValue(y[[3]])
+    Artic.df$ISSN[i]<- xmlValue(z[[1]])
+  }
+
+}
+
+```
+```{r}
+library(dplyr)
+Artic.df$creatDate = paste(Artic.df$year, Artic.df$Month, Artic.df$day, sep= "/")
+
+Artic.df<- select (Artic.df,-c(year,Month,day))
+
+print(Artic.df)
+```
+
+
+```{r}
+for (i in 1:numPO)
+{
+  f = r[[i]]
+  d = f[[1]]
+  w = xmlChildren(d)
+  l1 = xmlName(d[[3]])
+  l2 = xmlName(d[[4]])
+  ch1 = capture.output(l1)
+  ch2 = capture.output(l2)
+  v = "Article"
+
+  cnode1 <- grepl(v, ch1 , fixed = TRUE)
+
+  cnode2 <- grepl(v, ch2 , fixed = TRUE)
+  if(cnode1 == TRUE){
+    m = d[[3]]
+    z = m[[1]]
+    x = z[[2]]
+    Journals.df$i_id[i] <- xmlValue(z[[1]])
+    Journals.df$jtital[i] = xmlValue(z[[3]])
+    Journals.df$volume[i] = xmlValue(x[[1]])
+    Journals.df$issue[i] = xmlValue(x[[2]])
+    
+    Journals.df$pubdate[i] = xmlValue(x[[3]])
+  }else if(cnode2 == TRUE){
+    m = d[[4]]
+    z = m[[1]]
+    x = z[[2]]
+    
+    Journals.df$i_id[i] <- xmlValue(z[[1]])
+    Journals.df$jtital[i] = xmlValue(z[[3]])
+    Journals.df$volume[i] = xmlValue(x[[1]])
+    Journals.df$issue[i] = xmlValue(x[[2]])
+    Journals.df$pubdate[i] = xmlValue(x[[3]])
+  }else{
+    m = d[[5]]
+    z = m[[1]]
+    x = z[[2]]
+    Journals.df$i_id[i] <- xmlValue(z[[1]])
+    Journals.df$jtital[i] = xmlValue(z[[3]])
+    Journals.df$volume[i] = xmlValue(x[[1]])
+    Journals.df$issue[i] = xmlValue(x[[2]])
+    Journals.df$pubdate[i] = xmlValue(x[[3]])
+  }
+
+}
+
+
+q = length(Journals.df$pubdate)
+
+for(i in 1:q){
+  Journals.df$pubdate[i] = gsub(" ", "", Journals.df$pubdate[i]) 
+  Journals.df$pubdate[i] = gsub("(?<=\\d)(?=\\D)|(?<=\\D)(?=\\d)", "/", Journals.df$pubdate[i], perl = TRUE)
+  Journals.df$pubdate[i] = substr(Journals.df$pubdate[i],1,8)
+
+}
+
+
+Journals.df$pubdate[12]<-"2012/May"
+  
+print(Journals.df)
+```
+
+
+
+
+```{r}
+ind = 1
+for (i in 1:numPO){
+  m = r[[i]]
+  art = m[[1]]
+
+
+  l1 = xmlName(art[[3]])
+  l2 = xmlName(art[[4]])
+  ch1 = capture.output(l1)
+  ch2 = capture.output(l2)
+  v = "Article"
+
+  cnode1 <- grepl(v, ch1 , fixed = TRUE)
+
+  cnode2 <- grepl(v, ch2 , fixed = TRUE)
+  if(cnode1 == TRUE){
+    a = art[[3]]
+    x = xmlName(a[[6]]) 
+    ch = capture.output(x)
+    v1 = "Author"
+  
+    cno <- grepl(v1, ch , fixed = TRUE)
+    if(cno == TRUE){
+      x = a[[6]]
+    }else{
+      x = a[[7]]
+    }
+    
+    numofAut = xmlSize(x)
+    
+    for(j in 1:numofAut){
+      aut = x[[j]]
+      Authors.df[nrow(Authors.df) +1,] <- c(ind,xmlValue(art[[1]]),xmlValue(aut[[1]]),xmlValue(aut[[2]]),xmlValue(aut[[3]]),xmlValue(aut[[4]]))
+      
+    }
+    
+
+  }else if(cnode2 == TRUE){
+    a = art[[4]]
+    x = xmlName(a[[6]]) 
+    ch = capture.output(x)
+    v1 = "Author"
+  
+    cno <- grepl(v1, ch , fixed = TRUE)
+    if(cno == TRUE){
+      x = a[[6]]
+    }else{
+      x = a[[7]]
+    }
+   
+    numofAut = xmlSize(x)
+    
+    for(j in 1:numofAut){
+      aut = x[[j]]
+      Authors.df[nrow(Authors.df) +1,] <- c(ind,xmlValue(art[[1]]),xmlValue(aut[[1]]),xmlValue(aut[[2]]),xmlValue(aut[[3]]),xmlValue(aut[[4]]))
+    }
+  }else{
+    a = art[[5]]
+    x = xmlName(a[[6]]) 
+    ch = capture.output(x)
+    v1 = "Author"
+  
+    cno <- grepl(v1, ch , fixed = TRUE)
+    if(cno == TRUE){
+      x = a[[6]]
+    }else{
+      x = a[[7]]
+    }
+    
+    numofAut = xmlSize(x)
+    
+    for(j in 1:numofAut){
+      aut = x[[j]]
+      Authors.df[nrow(Authors.df) +1,] <- c(ind,xmlValue(art[[1]]),xmlValue(aut[[1]]),xmlValue(aut[[2]]),xmlValue(aut[[3]]),xmlValue(aut[[4]]))
+    }
+  }
+  
+
+}
+
+df = Authors.df[!Authors.df$l_name == "",]
+```
+
+
+
+
+```{r}
+library(tidyverse)
+
+df1 = distinct(df)
+df2 <- df1[!duplicated(df1[ , c("l_name", "f_name","inital","affiliation")]), ] 
+for(i in 1:length(df2$a_id)){
+  df2$a_id[i] = i
+}
+
+Authors.df <- df2[c("a_id","l_name", "f_name","inital","affiliation")]
+
+for(i in 1:length(df1$l_name)){
+  for(j in 1:length(Authors.df$l_name)){
+    if(df1[i,3]==Authors.df[j,2] & df1[i,4]==Authors.df[j,3]){
+      df1[i,1]= Authors.df[j,1]
+    }
+  }
+}
+
+Autart.df <- df1[c("a_id","p_id")]
+Autart.df  <- tibble::rowid_to_column(Autart.df , "k_id")
+print(Authors.df)
+print(Autart.df)
+```
+
+
+
+
+```{r}
+dbWriteTable(dbp2, "Authors", Authors.df, overwrite = T)
+dbWriteTable(dbp2, "Journals", Journals.df, overwrite = T)
+dbWriteTable(dbp2, "Articles", Artic.df, overwrite = T)
+dbWriteTable(dbp2, "Autart", Autart.df, overwrite = T)
+```
+
+```{sql connection=dbp2}
+select * from Authors 
+```
+```{sql connection=dbp2}
+select * from Journals 
+```
+```{sql connection=dbp2}
+select * from Articles 
+```
+```{sql connection=dbp2}
+select * from Autart 
+```
+
+### disconnect
+```{r}
+dbDisconnect(dbp2)
+```

@@ -1,0 +1,237 @@
+---
+title: "p2q2"
+author: "Hongyang Wang"
+date: '2022-05-03'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+library(RMySQL)
+
+# 2. Settings
+db_user <- 'cs5200'
+db_password <- 'why940308.'
+db_name <- 'P1DB'
+db_host <- 'cs5200-db.cofuluukbiza.us-east-1.rds.amazonaws.com' # AWS Host
+db_port <- 3306
+
+# 3. Read data from db
+p2q2 <-  dbConnect(MySQL(), user = db_user, password = db_password,
+                 dbname = db_name, host = db_host, port = db_port)
+
+
+```
+
+```{r}
+dbcon <- dbConnect(RSQLite::SQLite(),"pubmed_sample.sqlite")
+```
+
+
+```{sql connection=p2q2}
+drop table if exists Articles
+
+```
+```{sql connection=p2q2}
+drop table if exists Journals
+
+```
+```{sql connection=p2q2}
+drop table if exists Authors
+
+```
+```{sql connection=p2q2}
+drop table if exists FactTable
+
+```
+```{sql connection=p2q2}
+drop table if exists JournalSummary
+
+```
+```{sql connection=p2q2}
+drop table if exists AuthorSummary
+
+```
+
+
+```{sql connection=p2q2}
+create table Articles(
+  p_id NUMERIC not null,
+  articeTital Text not null,
+  creatDate date,
+  ISSN Text,
+  primary key (`p_id`)
+
+)
+```
+
+```{sql connection=p2q2}
+create table Authors(
+  a_id NUMERIC not null,
+  l_name Text not null,
+  f_name Text,
+  inital Text,
+  affiliation Text,
+  primary key (`a_id`)
+)
+```
+
+```{sql connection=p2q2}
+create table Journals(
+  i_id VARCHAR(50) NOT NULL,
+  jtital Text,
+  volume Text,
+  issue Text,
+  pubdate date,
+  primary key (`i_id`)
+  
+)
+```
+
+
+
+```{sql connection=p2q2}
+create table AuthorSummary(
+  su_id MEDIUMINT NOT NULL AUTO_INCREMENT,
+  a_id NUMERIC,
+  totalArticles  NUMERIC,
+  averagePerYear  NUMERIC,
+  primary key (`su_id`),
+  foreign key (`a_id`) references Authors(`a_id`)
+)
+```
+
+```{sql connection=p2q2}
+create table FactTable(
+  F_id MEDIUMINT NOT NULL AUTO_INCREMENT,
+  i_id VARCHAR(50) not null,
+  P_id NUMERIC not null,
+  a_id NUMERIC not null,
+  primary key (`F_id`),
+  foreign key (`i_id`) references Journals(`i_id`),
+  foreign key (`P_id`) references Articles(`P_id`),
+  foreign key (`a_id`) references Authors(`a_id`)
+  )
+```
+
+```{r}
+a = dbGetQuery(dbcon,'
+  select  *
+  from "Articles"
+')
+art = dbGetQuery(dbcon,'
+  select  *
+  from "Authors"
+')
+j = dbGetQuery(dbcon,'
+  select  *
+  from "Journals"
+')
+
+artic = as.data.frame(a)
+arts = as.data.frame(art)
+jou = as.data.frame(j)
+
+jou$pubdate = artic$creatDate
+
+print(artic)
+print(arts)
+print(jou)
+
+```
+```{r}
+k = dbGetQuery(dbcon,'
+  select distinct art.p_id,aut.a_id,j.i_id
+  from Articles as art  join Autart as aa on art.p_id = aa.p_id join Authors as aut on aa.a_id = aut.a_id join Journals as j on j.i_id = art.ISSN
+')
+key = as.data.frame(k)
+```
+the newest creatDate is 2013 and oldest creatDate is 2011
+```{sql connection=dbcon}
+select creatDate from Articles
+
+```
+
+
+the newest creatDate is 2013 and oldest creatDate is 2011
+so the avg data should be totalArticels/2
+
+
+```{r}
+as = dbGetQuery(dbcon,'
+  select  aut.a_id,count( distinct art.p_id) as totalArticles,round(count( distinct art.p_id)/2,1) as averagePerYear
+  from Articles as art  join Autart as aa on art.p_id = aa.p_id join Authors as aut on aa.a_id = aut.a_id join Journals as j on j.i_id = art.ISSN group by aut.a_id
+')
+asd = as.data.frame(as)
+print(asd)
+```
+
+
+```{r}
+#dbWriteTable(p2q2, value = artic, name = "Articles", append = TRUE, row.names=F)
+#dbWriteTable(p2q2, value = arts, name = "Authors", append = TRUE, row.names=F)
+#dbWriteTable(p2q2, value = jou, name = "Journals", append = TRUE, row.names=F)
+#dbWriteTable(p2q2, value = key, name = "FactTable", append = TRUE, row.names=F)
+#dbWriteTable(p2q2, value = asd, name = "AuthorSummary", append = TRUE, row.names=F)
+```
+
+```{sql connection=p2q2}
+select * from Articles
+
+```
+```{sql connection=p2q2}
+select * from Journals
+
+```
+
+```{sql connection=p2q2}
+select * from Authors
+
+```
+
+
+
+
+
+
+
+```{sql connection=p2q2}
+select * from FactTable
+
+```
+
+
+```{sql connection=p2q2}
+select * from AuthorSummary
+
+```
+
+## part 3
+
+
+```{sql connection=p2q2}
+select aut.a_id,l_name,f_name,totalArticles,averagePerYear from AuthorSummary as asu join Authors as aut on  aut.a_id=asu.a_id order by totalArticles Desc LIMIT 10;
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+dbDisconnect(p2q2)
+dbDisconnect(dbcon)
+```
